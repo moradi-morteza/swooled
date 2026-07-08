@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>مدیریت حافظه Swoole و افزایش موقت RAM</title>
+    <style>
+        body {
+            font-family: Tahoma, Arial, sans-serif;
+            line-height: 2;
+            background: #f7f7f7;
+            color: #222;
+            padding: 30px;
+        }
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+        }
+        h1, h2 { color: #1565c0; }
+        .box {
+            background: #eef6ff;
+            padding: 15px;
+            border-right: 5px solid #1565c0;
+            margin: 20px 0;
+        }
+        .good { background:#e8f5e9; border-right-color:#2e7d32; }
+        .bad { background:#ffebee; border-right-color:#c62828; }
+        code {
+            direction:ltr;
+            display:block;
+            background:#222;
+            color:#eee;
+            padding:10px;
+            border-radius:8px;
+        }
+    </style>
+</head>
+
+<body>
+<div class="container">
+
+    <h1>بررسی افزایش و کاهش حافظه در Swoole Redis Server</h1>
+
+    <p>
+        گاهی بعد از ایجاد تعداد زیادی Connection آزمایشی، مقدار RAM مصرفی برنامه افزایش پیدا می‌کند.
+        بعد از بسته شدن Connectionها، حافظه کاهش پیدا می‌کند اما دقیقا به مقدار اولیه برنمی‌گردد.
+        این رفتار در بسیاری از برنامه‌های نوشته شده با Swoole و PHP طبیعی است.
+    </p>
+
+    <h2>چرا حافظه به مقدار اول برنمی‌گردد؟</h2>
+
+    <div class="box">
+        <ul>
+            <li><b>PHP Memory Allocator:</b> حافظه آزاد شده را معمولا برای استفاده‌های بعدی نگه می‌دارد.</li>
+            <li><b>Swoole Memory Pool:</b> برای افزایش سرعت، بعضی منابع را cache می‌کند.</li>
+            <li><b>Kernel Socket Buffer:</b> اطلاعات مربوط به TCP Connection ممکن است کمی دیر آزاد شوند.</li>
+            <li><b>Memory Fragmentation:</b> باعث می‌شود فضای آزاد وجود داشته باشد ولی به سیستم عامل برنگردد.</li>
+        </ul>
+    </div>
+
+    <h2>رفتار طبیعی چگونه است؟</h2>
+
+    <div class="good">
+        <p>
+            مثال:
+            <br>
+            30MB → 120MB → 45MB
+        </p>
+        <p>
+            اگر چند بار تست کنیم و همیشه حدود 45MB باقی بماند،
+            این معمولا نشانه Leak نیست؛ بلکه حافظه برای استفاده مجدد نگه داشته شده است.
+        </p>
+    </div>
+
+    <h2>رفتار خطرناک چیست؟</h2>
+
+    <div class="bad">
+        <p>
+            مثال:
+            <br>
+            30MB → 120MB → 80MB
+            <br>
+            تست بعدی:
+            <br>
+            80MB → 160MB → 120MB
+        </p>
+
+        <p>
+            اگر بعد از هر تست مقدار پایه بیشتر شود،
+            احتمال Memory Leak وجود دارد و باید بررسی شود.
+        </p>
+    </div>
+
+    <h2>چگونه در سیستم خودمان شبیه‌سازی کنیم؟</h2>
+
+    <p>
+        با ایجاد تعداد زیادی Connection و نگه داشتن آن‌ها برای چند ثانیه:
+    </p>
+
+    <code>
+        open connections → hold → close → repeat
+    </code>
+
+    <p>
+        نمونه تست:
+    </p>
+
+    <code>
+        500 connection هر ثانیه
+        نگهداری 5 ثانیه
+        مدت تست: 60 ثانیه
+    </code>
+
+    <h2>چگونه مقدار حافظه را بررسی کنیم؟</h2>
+
+    <code>
+        docker stats
+
+        ps aux | grep server.php
+    </code>
+
+    <p>
+        در محیط Kubernetes معمولا Grafana مقدار RSS یا Container Memory را نشان می‌دهد،
+        نه فقط آبجکت‌های زنده PHP.
+    </p>
+
+    <h2>آیا می‌توانیم حافظه را دقیقا به مقدار اول برگردانیم؟</h2>
+
+    <p>
+        معمولا خیر. تنها راه قطعی Restart کردن Process یا Container است.
+    </p>
+
+    <h2>راهکارهای کنترل حافظه</h2>
+
+    <ul>
+        <li>تنظیم max_request برای recycle شدن Workerها</li>
+        <li>استفاده از Memory Limit در Docker/Kubernetes</li>
+        <li>Restart کردن Worker در صورت عبور از Threshold</li>
+        <li>مانیتور کردن روند حافظه، نه فقط یک مقدار لحظه‌ای</li>
+    </ul>
+
+    <h2>نتیجه‌گیری</h2>
+
+    <p>
+        افزایش RAM بعد از فشار تست و برگشت به یک مقدار کمی بالاتر،
+        در Swoole معمولا رفتار طبیعی است.
+        مهم این است که حافظه در هر تست به صورت دائمی افزایش پیدا نکند.
+    </p>
+
+</div>
+</body>
+</html>
