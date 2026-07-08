@@ -1,0 +1,35 @@
+# Local IDE/editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and runtime files
+*.log
+swoole.log
+*.pid
+
+# Environment overrides
+.env
+.env.*
+!.env.example
+
+# PHP dependencies and tooling caches
+vendor/
+.phpunit.cache/
+.php-cs-fixer.cache
+
+# Node dependencies, if frontend tooling is added later
+node_modules/
+
+# Docker/local generated data
+prometheus-data/
+grafana-data/
+
+# Temporary files
+tmp/
+temp/

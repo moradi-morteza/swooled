@@ -1,0 +1,53 @@
+services:
+  app:
+    build: .
+    container_name: swooled-app
+    ports:
+      - "9501:9501"
+      - "9502:9502"
+    volumes:
+      - ./:/app
+    environment:
+      APP_PORT: 9501
+      METRICS_PORT: 9502
+      MAX_CONNECTIONS: "${MAX_CONNECTIONS:-1024}"
+      SERVER_BACKLOG: "${SERVER_BACKLOG:-4096}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+    ulimits:
+      nofile:
+        soft: 1048576
+        hard: 1048576
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: swooled-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      - app
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: swooled-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus-data:
+  grafana-data:
