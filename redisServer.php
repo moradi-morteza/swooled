@@ -116,6 +116,17 @@ $server->on(
     }
 );
 
+$server->setHandler("PING",function (int $fd, array $data) use ($server) {
+    echo "PING $fd".PHP_EOL;
+    if (count($data) === 0) {
+        // PING without arguments returns "PONG"
+        $server->send($fd, statusResponse("PONG"));
+    } else {
+        // PING with argument returns the argument as echo
+        $server->send($fd, stringResponse($data[0]));
+    }
+});
+
 
 // Worker error
 $server->on(
@@ -132,6 +143,32 @@ $server->on(
 
     }
 );
+
+function statusResponse(string $status): string
+{
+    return Server::format(Server::STATUS, $status);
+    # return "+OK\r\n"; pear RESP format
+}
+function nilResponse(): string
+{
+    return Server::format(Server::NIL);
+}
+
+/**
+ * Returns a bulk string response (used for GET, etc.)
+ */
+function stringResponse(string $value): string
+{
+    return Server::format(Server::STRING, $value);
+}
+
+/**
+ * Returns an integer response (used for commands like INCR)
+ */
+function integerResponse(int $number): string
+{
+    return Server::format(Server::INT, $number);
+}
 
 
 
