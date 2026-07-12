@@ -2,7 +2,7 @@ FROM phpswoole/swoole:php8.3-alpine
 
 WORKDIR /app
 
-COPY redisServer.php metrics.php metricsServer.php docker-entrypoint.sh ./
+COPY run.php metrics.php metricsServer.php docker-entrypoint.sh ./
 
 RUN chmod +x /app/docker-entrypoint.sh
 
