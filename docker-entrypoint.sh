@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-php /app/redisServer.php &
+php /app/run.php &
 app_pid="$!"
 
 cleanup() {
