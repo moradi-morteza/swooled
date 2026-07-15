@@ -1,4 +1,6 @@
 <?php
+
+date_default_timezone_set('Asia/Tehran');
 enum ANSIColor: string {
     // Text Colors
     case Black = '0;30';

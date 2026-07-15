@@ -1,15 +1,22 @@
 <?php
+
+require_once __DIR__.'/bootstrap.php';
+
 Swoole\Runtime::enableCoroutine(true);
 
-\Co\run(function () {
+$channel = $argv[1] ?? 'debug';
 
+\Co\run(function () use ($channel) {
+    $redis = new Redis();
 
-    go(function () {
-        $redis = new Redis();
+    try {
         $redis->pconnect('127.0.0.1', 9501);
-        var_dump($redis->ping());
-    });
+        TerminalLogger::success("Subscribed to $channel; waiting for messages...");
 
-
-    Co::sleep(20000);
+        $redis->subscribe([$channel], function (Redis $redis, string $channel, string $message): void {
+            TerminalLogger::warning("channel=$channel message=$message");
+        });
+    } catch (RedisException $exception) {
+        TerminalLogger::error("Redis error: {$exception->getMessage()}");
+    }
 });

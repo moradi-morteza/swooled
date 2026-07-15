@@ -5,6 +5,7 @@ require_once __DIR__.'/bootstrap.php';
 use Swoole\Constant;
 use Swoole\Redis\Server;
 use Swoole\Server as SwooleServer;
+use Swoole\Timer;
 
 $ip = '0.0.0.0';
 $port = 9501;
@@ -24,6 +25,9 @@ $server->set([
 
 ]);
 
+$channelFds = [];
+$fdChannels = [];
+
 $server->setHandler("AUTH", function (int $fd, array $data) use ($server) {
     TerminalLogger::info("client auth fd : $fd");
     $password   = $data[0] ?? null;
@@ -42,6 +46,35 @@ $server->setHandler("PING",function (int $fd, array $data) use ($server) {
     }
 });
 
+$server->setHandler("SUBSCRIBE", function (int $fd, array $data) use ($server, &$channelFds, &$fdChannels) {
+    $channel = $data[0] ?? null;
+
+    if ($channel === null) {
+        $server->send($fd, errorResponse("ERR wrong number of arguments for 'subscribe' command"));
+        return;
+    }
+
+    if ($server->protect($fd) === false) {
+        $server->send($fd, errorResponse("ERR failed to protect subscriber connection"));
+        return;
+    }
+
+    if (isset($fdChannels[$fd])) {
+        $previousChannel = $fdChannels[$fd];
+        unset($channelFds[$previousChannel][$fd]);
+
+        if (empty($channelFds[$previousChannel])) {
+            unset($channelFds[$previousChannel]);
+        }
+    }
+
+    $channelFds[$channel][$fd] = $fd;
+    $fdChannels[$fd] = $channel;
+    $server->send($fd, subscribeResponse($channel, 1));
+
+    TerminalLogger::success("subscribed fd $fd to channel $channel");
+});
+
 
 
 
@@ -58,8 +91,16 @@ $server->setHandler("PING",function (int $fd, array $data) use ($server) {
 
 // ------------------------------------------------------------------------------------------
 // Worker start
-$server->on("workerStart", function (SwooleServer $server, int $workerId) {
-
+$server->on("workerStart", function (SwooleServer $server, int $workerId) use (&$channelFds) {
+    Timer::tick(10_000, function () use ($server, &$channelFds) {
+        foreach ($channelFds as $channel => $fds) {
+            foreach ($fds as $fd) {
+                if ($server->exist($fd)) {
+                    $server->send($fd, pubSubMessageResponse($channel, "PING"));
+                }
+            }
+        }
+    });
 });
 // Worker stop
 $server->on("workerStop", function (SwooleServer $server, int $workerId) {
@@ -72,7 +113,16 @@ $server->on('connect', function ($server, $fd) {
 
 });
 // Client disconnect
-$server->on('close', function ($server, $fd) {
+$server->on('close', function ($server, $fd) use (&$channelFds, &$fdChannels) {
+    if (isset($fdChannels[$fd])) {
+        $channel = $fdChannels[$fd];
+        unset($channelFds[$channel][$fd], $fdChannels[$fd]);
+
+        if (empty($channelFds[$channel])) {
+            unset($channelFds[$channel]);
+        }
+    }
+
     TerminalLogger::error("client close fd : $fd");
 });
 // Worker error
@@ -89,6 +139,24 @@ function statusResponse(string $status): string
 function stringResponse(string $value): string
 {
     return Server::format(Server::STRING, $value);
+}
+function errorResponse(string $message): string
+{
+    return Server::format(Server::ERROR, $message);
+}
+function subscribeResponse(string $channel, int $subscriptionCount): string
+{
+    return "*3\r\n"
+        . "$9\r\nsubscribe\r\n"
+        . '$' . strlen($channel) . "\r\n{$channel}\r\n"
+        . ":{$subscriptionCount}\r\n";
+}
+function pubSubMessageResponse(string $channel, string $message): string
+{
+    return "*3\r\n"
+        . "$7\r\nmessage\r\n"
+        . '$' . strlen($channel) . "\r\n{$channel}\r\n"
+        . '$' . strlen($message) . "\r\n{$message}\r\n";
 }
 
 TerminalLogger::success("Redis server running on {$ip}:{$port}");
