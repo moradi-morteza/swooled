@@ -25,14 +25,14 @@ $server->set([
 ]);
 
 $server->setHandler("AUTH", function (int $fd, array $data) use ($server) {
-    echo "client auth fd : $fd".PHP_EOL;
+    TerminalLogger::info("client auth fd : $fd");
     $password   = $data[0] ?? null;
     $server->send($fd, statusResponse("OK"));
 
 });
 
 $server->setHandler("PING",function (int $fd, array $data) use ($server) {
-    echo "client ping fd : $fd".PHP_EOL;
+    TerminalLogger::info("client ping fd : $fd");
     if (count($data) === 0) {
         // PING without arguments returns "PONG"
         $server->send($fd, statusResponse("PONG"));
@@ -68,12 +68,12 @@ $server->on("workerStop", function (SwooleServer $server, int $workerId) {
 });
 // Client connect
 $server->on('connect', function ($server, $fd) {
-    echo "client connect fd : $fd".PHP_EOL;
+    TerminalLogger::success("client connect fd : $fd");
 
 });
 // Client disconnect
 $server->on('close', function ($server, $fd) {
-    echo "client close fd : $fd".PHP_EOL;
+    TerminalLogger::error("client close fd : $fd");
 });
 // Worker error
 $server->on(
@@ -91,6 +91,6 @@ function stringResponse(string $value): string
     return Server::format(Server::STRING, $value);
 }
 
-echo "Redis server running on {$ip}:{$port}\n";
+TerminalLogger::success("Redis server running on {$ip}:{$port}");
 
 $server->start();
